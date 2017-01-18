@@ -45,8 +45,8 @@ int getIntFlashVersion(){
 
 int isExtFlashChecksumOK(){
 	//verify flags first, that is faster
-
 	//verify checksum
+
 
 	return 0; //very broken
 	return 1; //is OK
@@ -54,13 +54,29 @@ int isExtFlashChecksumOK(){
 
 int getMCUID(){
 	int ID;
-
+	// see "20.13.11" in user manual
 	ID=35; //(LPC11U)35, 64kB flash
 	return ID;
 }
 
+int updateIntFlashChecksum(){
+
+
+
+	return 1; //is OK
+	return 0; //very broken
+}
+
 int isIntFlashChecksumOK(){
-	if(getMCUID == 35){
+
+	//if firstboot flag
+	//update image length
+	//calc and update checksum
+	//remove firstboot flag
+	//verify firstboot flag. If still there, something hellawrong, not allow boot.
+	//continue with (re)check of internal checksum
+
+	if(getMCUID() == 35){
 		//check for LPC11U35
 	} else return 1; //Others not supported yet, so, yeah, sure why not.
 
@@ -85,8 +101,10 @@ int main(){
 	//attempt flashing stock image
 	if(isIntFlashChecksumOK()) jumpToApplication();
 
+	//indicate major error?
+
 	while(1){ //lock MCU
-		//indicate major error?
+
 	}
 	return 1; //o no!?
 }
