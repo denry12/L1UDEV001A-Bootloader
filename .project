@@ -3,6 +3,7 @@
 	<name>L1UDEV001A-Bootloader</name>
 	<comment></comment>
 	<projects>
+		<project>CMSISv2p00_LPC11Uxx</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
