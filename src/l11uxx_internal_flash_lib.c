@@ -39,12 +39,23 @@ const char *firmwareVersion = (char*)0x1000; //lel see peaks olema 4kB mitte 8b 
 //unsigned char firmwareChecksum[4]@0x2000;
 
 
-int l11uxx_internal_flash_read(int srcFlashAddr){
+char l11uxx_internal_flash_read(char *srcFlashAddr){
 	//this function is by idiot denry for idiot denry
 	//should be optimized, remove that useless variable
-	int data=0;
-	data = *(&srcFlashAddr);
+	char data=0;
+	data = *(srcFlashAddr);
 	return data;
+}
+
+int l11uxx_internal_flash_getSectorNumber(int flashAddr){
+	int sector = 0;
+	const int sector_size = 4096; //in bytes. 4kB for 11u1x/2x/3x
+	int currentTestAddr = 0;
+	while(currentTestAddr < flashAddr){
+		currentTestAddr+=sector_size;
+		sector++;
+	}
+	return sector;
 }
 
 int l11uxx_internal_flash_prepForWrite(int startSectorNumber, int endSectorNumber){ //To prepare a single sector use the same "Start" and "End" sector numbers.
@@ -65,6 +76,9 @@ int l11uxx_internal_flash_RAMToFlash(int destFlashAddr, int srcRamAddr, int numO
 
 	//source addr "should be a word boundary"
 
+	//prep for write
+	l11uxx_internal_flash_prepForWrite(l11uxx_internal_flash_getSectorNumber(destFlashAddr), l11uxx_internal_flash_getSectorNumber(destFlashAddr+numOfBytes));
+
 
 	command_param[0] = 51;
 	command_param[1] = destFlashAddr;
@@ -77,6 +91,21 @@ int l11uxx_internal_flash_RAMToFlash(int destFlashAddr, int srcRamAddr, int numO
 	if(status_result[0] == IAP_STATUS_CMD_SUCCESS) return 0; //everything wented better than expedition
 	return 1; //o no
 
+}
+
+int l11uxx_internal_flash_modifyOneByte(int flashAddr, char data, int sysClkInKhz){
+	int firstFlashAddr;
+	const int bitBoundary = 256; // Destination flash address where data bytes are to be written. This address should be a 256 byte boundary.
+	int flashBlockStartAddr = 0;
+	while(flashBlockStartAddr<flashAddr) flashBlockStartAddr+=bitBoundary;
+	flashBlockStartAddr-=bitBoundary; //because I do intentional overshoot
+	char flashBuffer[256];
+	int i;
+	for (i=0; i<256; i++) flashBuffer[i] = l11uxx_internal_flash_read(flashBlockStartAddr+i);
+	flashBuffer[flashAddr-flashBlockStartAddr] = data;
+	l11uxx_internal_flash_RAMToFlash(flashBlockStartAddr, &flashBuffer, 256, sysClkInKhz);
+	if(l11uxx_internal_flash_read(flashAddr) == data)return 0; //everything wented better than expedition
+	return 1; //o no
 }
 
 int l11uxx_internal_flash_erase(int startSectorNumber, int endSectorNumber, int sysClkInKhz){ //To erase a single sector use the same "Start" and "End" sector numbers.

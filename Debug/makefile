@@ -41,7 +41,7 @@ clean:
 
 post-build:
 	-@echo 'Performing post-build steps'
-	-arm-none-eabi-size "L1UDEV001A-Bootloader.axf"; # arm-none-eabi-objcopy -v -O binary "L1UDEV001A-Bootloader.axf" "L1UDEV001A-Bootloader.bin" ; # checksum -p LPC11U35_401 -d "L1UDEV001A-Bootloader.bin";
+	-arm-none-eabi-size "L1UDEV001A-Bootloader.axf" ; arm-none-eabi-objcopy -v -O ihex "L1UDEV001A-Bootloader.axf" "L1UDEV001A-Bootloader.hex" ; # arm-none-eabi-objcopy -v -O binary "L1UDEV001A-Bootloader.axf" "L1UDEV001A-Bootloader.bin" ; # checksum -p LPC11U35_401 -d "L1UDEV001A-Bootloader.bin"
 	-@echo ' '
 
 .PHONY: all clean dependents

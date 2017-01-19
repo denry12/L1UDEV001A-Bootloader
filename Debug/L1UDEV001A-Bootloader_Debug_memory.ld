@@ -5,7 +5,7 @@
  * Generated linker script file for LPC11U35/401
  * Created from memory.ldt by FMCreateLinkMemory
  * Using Freemarker v2.3.23
- * LPCXpresso v8.1.2 [Build 603] [2016-03-07]  on 19-Jan-2017 12:13:14
+ * LPCXpresso v8.1.2 [Build 603] [2016-03-07]  on 19-Jan-2017 16:05:47
  */
 
 MEMORY
