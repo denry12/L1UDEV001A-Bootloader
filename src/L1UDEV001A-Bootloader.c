@@ -129,20 +129,29 @@ int md5leftrotate(int x, int c){
 int calculateIntFlashChecksum(char *checkSumPointer){
 	//http://www.zorc.breitbandkatze.de/crc.html
 	//for testing
-	//doing CRC-32
+	//doing CRC-8
 
 
 	int i;
-	unsigned long long divisor = 0x0000000004C11DB7; //33 bit;
-	divisor = divisor << 32;
-	int length = 0;//in 256 byte pages
+	unsigned int divisor = 0x000000D5; //8 bit;
+	divisor = divisor << 24; //I test MSB first and shift data
+	unsigned long long length = 0;//in 256 byte pages
+
+	//unsigned long long lastFlashAddr = APP_SP_ADDR + length;
+
 	//length = length * 64; //this many 512bit chunks
+	//length = length * 64 * 16; //this many 32bit chunks
+	//goal is to get number of 32bit chunks
 	length = 1; //1 chunk, for testing
+
+	//new goal is to get 32bit chunk count
+	length = length * 4; //how many 8bit chunks
 	//char blockOf512bit[16];
-	unsigned long long blockUnderTest = 0; //64 bit, 32bit being data, 32bit being checksum
+	unsigned long long blockUnderTest = 0; //64 bit, 32bit being data, 8bit being checksum
 	unsigned int checksum; //
 
 	//this is where loop starts
+	while(length > 0){
 	//input of block
 	blockUnderTest |= ('H' << 24);
 	blockUnderTest |= ('i' << 16);
@@ -150,11 +159,18 @@ int calculateIntFlashChecksum(char *checkSumPointer){
 	//blockUnderTest |= (0 << 0);
 
 	//pad the block with zeroes to fit CRC length (32bit)
-	blockUnderTest = blockUnderTest << 32;
+	//blockUnderTest = blockUnderTest << 32;
 	i=0;
-	while((((blockUnderTest>>32)&0xFFFFFFFF)) != 0){
+	for(i=0; i<8; i++){ //run 8 bits and shift in new data
+		while(((blockUnderTest>>31)&0x01) != 1) i++;
+		blockUnderTest = blockUnderTest ^ divisor;
+		blockUnderTest = blockUnderTest << 1;
+	}
+	//blockUnderTest |= getflash(endAddr + i)//get new info
+
+
 		blockUnderTest = blockUnderTest ^ ((divisor>>i)&0xFFFFFFFF);
-		while(!((blockUnderTest>>(64-i)) & 0x01))i++;
+
 		bootloader_debugmessage("B:");
 		bootloader_debugmessage_valueHex(((blockUnderTest>>32)&0xFFFFFFFF),8);
 		bootloader_debugmessage("\n\r");
@@ -162,10 +178,10 @@ int calculateIntFlashChecksum(char *checkSumPointer){
 		bootloader_debugmessage_valueHex(((divisor>>32)&0xFFFFFFFF),8);
 		bootloader_debugmessage("\n\r");
 		bootloader_debugmessage("------------\n\r");
-	}
-	checksum = blockUnderTest & 0xFFFFFFFF;
-	//this is where loop ends
 
+	}
+	//this is where loop ends
+	checksum = blockUnderTest & 0xFFFFFFFF;
 	//put checksum to correct place, cause I hate pointers so much
 	checkSumPointer[3] = ((checksum >> 24)&0xFF);
 	checkSumPointer[2] = ((checksum >> 16)&0xFF);
@@ -253,12 +269,12 @@ int isIntFlashChecksumOK(){
 int main(){
 
 
-	bootloader_debugmessage("Expecting 4 byte checksum for internal image: ");
-	bootloader_debugmessage_valueHex(l11uxx_internal_flash_read(APP_INFO_ADDR_START+256-4),4);
+	bootloader_debugmessage("Expecting 1 byte checksum for internal image: ");
+	bootloader_debugmessage_valueHex(l11uxx_internal_flash_read(APP_INFO_ADDR_START+256-1),4);
 	bootloader_debugmessage("\n\r");
 
 	bootloader_debugmessage("Test checksum for 'Hi'!\n\r");
-	char checksum[32]; //only 4 bytes used for CRC-32
+	char checksum[32]; //only 1 byte used for CRC-8
 	calculateIntFlashChecksum(checksum);
 	bootloader_debugmessage(checksum);
 
