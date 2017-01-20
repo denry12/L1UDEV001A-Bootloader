@@ -127,116 +127,50 @@ int md5leftrotate(int x, int c){
 }
 
 int calculateIntFlashChecksum(char *checkSumPointer){
-	int i;
+	//http://www.zorc.breitbandkatze.de/crc.html
+	//for testing
+	//doing CRC-32
 
+
+	int i;
+	unsigned long long divisor = 0x0000000004C11DB7; //33 bit;
+	divisor = divisor << 32;
 	int length = 0;//in 256 byte pages
 	//length = length * 64; //this many 512bit chunks
 	length = 1; //1 chunk, for testing
-	int blockOf512bit[16]; //16*32bit words
-	int F;
-	int g;
-	int dTemp;
-	const char s[64] = { 	7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,
-							7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,
-							4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23,
-							6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21 };
+	//char blockOf512bit[16];
+	unsigned long long blockUnderTest = 0; //64 bit, 32bit being data, 32bit being checksum
+	unsigned int checksum; //
 
-	const int K[64] = { 0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee,
-	 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501 ,
-	 0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be ,
-	 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821 ,
-0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa ,
-	0xd62f105d, 0x02441453, 0xd8a1e681, 0xe7d3fbc8 ,
-	  0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed ,
-	 0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a ,
-	  0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c ,
-	 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70 ,
-	 0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x04881d05 ,
-	 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665 ,
-	 0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039 ,
-	 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1 ,
-	0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1 ,
-	0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391 };
+	//this is where loop starts
+	//input of block
+	blockUnderTest |= ('H' << 24);
+	blockUnderTest |= ('i' << 16);
+	//blockUnderTest |= (0 << 8);
+	//blockUnderTest |= (0 << 0);
 
-	static int wordA0=0x67452301, wordB0=0xefcdab89   , wordC0=0x98badcfe   , wordD0=0x10325476   ;
-	int wordA, wordB   , wordC   , wordD   ;
-
-	//input of block with preprocessing
-	blockOf512bit[0] = 'H';
-	blockOf512bit[1] = 'i';
-	blockOf512bit[2] = 0x80000000;
-	blockOf512bit[3] = 0;
-	blockOf512bit[4] = 0;
-	blockOf512bit[5] = 0;
-	blockOf512bit[6] = 0;
-	blockOf512bit[7] = 0;
-	blockOf512bit[8] = 0;
-	blockOf512bit[9] = 0;
-	blockOf512bit[10] = 0;
-	blockOf512bit[11] = 0;
-	blockOf512bit[12] = 0;
-	blockOf512bit[13] = 0;
-	blockOf512bit[14] = 0;
-	blockOf512bit[15] = 2;
-
-
-	//for each chunk, TODO:
-
-	wordA=wordA0, wordB=wordB0   , wordC=wordC0   , wordD=wordD0   ;
-
-	for(i=0; i<64; i++){
-		if(i<16){
-			F = (wordB & wordC) || ((~wordB) & wordD);
-			g = i;
-		}
-		if((i>16)||(i<32)){
-			F = (wordD & wordB) | ((~wordD) & wordC);
-			g = ((5*i+1) % 16);
-		}
-		if((i>32)||(i<48)){
-			F = wordB ^ wordC ^ wordD;
-			g = ((3*i+1) % 16);
-		}
-		if((i>48)||(i<64)){
-			F = wordC ^ (wordB | (~wordD));
-			g = ((7*i) % 16);
-		}
-
-
-
-
-	dTemp = wordD;
-	wordD = wordC;
-	wordC = wordB;
-	wordB = wordB + md5leftrotate(wordA + F + K[i] + blockOf512bit[g], s[i]);
-	wordA = dTemp;
+	//pad the block with zeroes to fit CRC length (32bit)
+	blockUnderTest = blockUnderTest << 32;
+	i=0;
+	while((((blockUnderTest>>32)&0xFFFFFFFF)) != 0){
+		blockUnderTest = blockUnderTest ^ ((divisor>>i)&0xFFFFFFFF);
+		while(!((blockUnderTest>>(64-i)) & 0x01))i++;
+		bootloader_debugmessage("B:");
+		bootloader_debugmessage_valueHex(((blockUnderTest>>32)&0xFFFFFFFF),8);
+		bootloader_debugmessage("\n\r");
+		bootloader_debugmessage("D:");
+		bootloader_debugmessage_valueHex(((divisor>>32)&0xFFFFFFFF),8);
+		bootloader_debugmessage("\n\r");
+		bootloader_debugmessage("------------\n\r");
 	}
-	//Add this chunk's hash to result so far:
-	wordA0 = wordA0 + wordA;
-	wordB0 = wordB0 + wordB;
-	wordC0 = wordC0 + wordC;
-	wordD0 = wordD0 + wordD;
+	checksum = blockUnderTest & 0xFFFFFFFF;
+	//this is where loop ends
 
-	//checksumPointer[0] = 'A';
-	//checksumPointer[1] = 'y';
-	//checksumPointer[2] = 'y';
-
-	for(i=0;i<15; i++){
-		checkSumPointer[i] = checkSumPointer[i+1];
-	}
-	for(i=0;i<15; i++){
-			checkSumPointer[i] = checkSumPointer[i+1];
-		}
-	for(i=0;i<15; i++){
-			checkSumPointer[i] = checkSumPointer[i+1];
-		}
-	for(i=0;i<15; i++){
-			checkSumPointer[i] = checkSumPointer[i+1];
-		}
-	checkSumPointer[3] = wordA0;
-	checkSumPointer[2] = wordB0;
-	checkSumPointer[1] = wordC0;
-	checkSumPointer[0] = wordD0;
+	//put checksum to correct place, cause I hate pointers so much
+	checkSumPointer[3] = ((checksum >> 24)&0xFF);
+	checkSumPointer[2] = ((checksum >> 16)&0xFF);
+	checkSumPointer[1] = ((checksum >> 8)&0xFF);
+	checkSumPointer[0] = ((checksum >> 0)&0xFF);
 	return 1; //is OK
 	return 0; //very broken
 }
@@ -319,12 +253,14 @@ int isIntFlashChecksumOK(){
 int main(){
 
 
-
+	bootloader_debugmessage("Expecting 4 byte checksum for internal image: ");
+	bootloader_debugmessage_valueHex(l11uxx_internal_flash_read(APP_INFO_ADDR_START+256-4),4);
+	bootloader_debugmessage("\n\r");
 
 	bootloader_debugmessage("Test checksum for 'Hi'!\n\r");
-	char md5checksum[32];
-	calculateIntFlashChecksum(md5checksum);
-	bootloader_debugmessage(md5checksum);
+	char checksum[32]; //only 4 bytes used for CRC-32
+	calculateIntFlashChecksum(checksum);
+	bootloader_debugmessage(checksum);
 
 	bootloader_debugmessage("L1UDEV001A bootloader is go!\n\r");
 	if(isExtFlashInstalled()){ //aww yeah we have flash, time to do things
