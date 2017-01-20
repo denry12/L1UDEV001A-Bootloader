@@ -121,10 +121,40 @@ int getMCUID(){
 	return ID;
 }
 
-int md5leftrotate(int x, int c){
-
-	return x;
+int accessChecksumMemory(int read, int value){
+	static int checksum = 0;
+	if(read) return checksum;
+	else checksum = value;
+	return 1;
 }
+
+int clearChecksumMemory(){
+	accessChecksumMemory(0, 0);
+	return 1;
+}
+
+int setChecksumMemory(int data){
+	accessChecksumMemory(0, data);
+	return 1;
+}
+
+int getChecksumMemory(){
+	return accessChecksumMemory(1, 0);
+}
+
+int add32bitToChecksum(int data){
+	int i;
+	const unsigned int divisor = 0x000000D5; //8 bit;
+	int currentChecksum = getChecksumMemory();
+	for(i=0; i<32; i++){
+		while((!(data&0x01))&&(i<32)) i++;
+		data = data >> 1;
+		currentChecksum = (data) ^ divisor;
+	}
+	setChecksumMemory(currentChecksum);
+	return 1; //all ok
+}
+
 
 int calculateIntFlashChecksum(char *checkSumPointer){
 	//http://www.zorc.breitbandkatze.de/crc.html
