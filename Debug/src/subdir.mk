@@ -23,7 +23,7 @@ C_DEPS += \
 src/%.o: ../src/%.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: MCU C Compiler'
-	arm-none-eabi-gcc -D__REDLIB__ -DDEBUG -D__CODE_RED -I"C:\Users\Denry\Documents\LPCXpresso_7.8.0_426\workspace8_01_swd\CMSISv2p00_LPC11Uxx\inc" -I"C:\Users\Denry\Documents\LPCXpresso_7.8.0_426\workspace8_01_swd\L1UDEV001A-Bootloader\inc" -O0 -g3 -Wall -c -fmessage-length=0 -fno-builtin -ffunction-sections -fdata-sections -mcpu=cortex-m0 -mthumb -D__REDLIB__ -specs=redlib.specs -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.o)" -MT"$(@:%.o=%.d)" -o "$@" "$<"
+	arm-none-eabi-gcc -D__REDLIB__ -DCORE_M0 -D__USE_CMSIS=CMSISv2p00_LPC11Uxx -D__LPC11UXX__ -DDEBUG -D__CODE_RED -I"C:\Users\Denry\Documents\LPCXpresso_7.8.0_426\workspace8_01_swd\CMSISv2p00_LPC11Uxx\inc" -I"C:\Users\Denry\Documents\LPCXpresso_7.8.0_426\workspace8_01_swd\L1UDEV001A-Bootloader\inc" -O0 -g3 -Wall -c -fmessage-length=0 -fno-builtin -ffunction-sections -fdata-sections -mcpu=cortex-m0 -mthumb -D__REDLIB__ -specs=redlib.specs -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.o)" -MT"$(@:%.o=%.d)" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

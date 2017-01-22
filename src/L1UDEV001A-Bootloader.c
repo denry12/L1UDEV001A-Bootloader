@@ -6,6 +6,11 @@
  */
 
 
+#ifdef __USE_CMSIS
+#include "LPC11Uxx.h"
+#endif
+//this is mostly necessary for UART
+
 //initial
 //#define APP_INFO_ADDR_START 0x00001000
 //#define APP_SP_ADDR 0x00001100
@@ -26,17 +31,58 @@
 
 #define SYSCLKINKHZ 12000 //for write in flash
 
+
+void bootloader_debugUART_init(){
+	//assumes MCU is running on 12MHz IRC still
+
+	//setting up Tx
+	LPC_IOCON->PIO0_19 |= 0x1; //p0_19
+	//NOT setting up Rx cause I am not listening to anything
+	LPC_IOCON->PIO0_18 |= 0x1; //p0_18
+
+	LPC_SYSCON->SYSAHBCLKCTRL |= (1<<12);
+	LPC_SYSCON->UARTCLKDIV = 0x01;        //UART clock
+
+	uint32_t  DL;
+	//DL=6; //115200 w/o xtal, 12MHz, works well
+	DL=76; //9600 w/o xtal, 12MHz
+
+
+	LPC_USART->FDR = (12 << 4) | 1; //DivAddVal = 1, MulVal = 12
+
+	LPC_USART->LCR = 0b10000011;  //  8-bit character length, DLAB enable ( DLAB = 1)
+	LPC_USART->DLM = DL / 256;    //  Determines the baud rate of the UART (MSB Register)     (Access DLAB = 1)
+	LPC_USART->DLL = DL % 256;    //  Determines the baud rate of the UART (LSB Register)     (Access DLAB = 1)
+	LPC_USART->LCR = 0b00000011;  //  8-bit character length , DLAB disable ( DLAB = 0)
+	LPC_USART->FCR = 0b00000111;  //  FIFOEN:Active high enable for both UART Rx and TX FIFOs and U0FCR[7:1] access
+
+	return 1; //is OK
+	return 0; //very broken
+}
+
 void bootloader_debugmessage(char text[]){
+	//todo: it currently copies entire array. Pointer would be better
+
+	//!!!uart version
 	//l11uxx_uart_Send(text);
+	int i=0;
+	while(text[i] != 0){
+		while (!(LPC_USART->LSR & (1<<5)));  //THRE: Transmitter Holding Register Empty.
+				                                        // 0: THR contains valid data, 1: THR is empty
+		LPC_USART->THR = text[i];
+		i++;
+	}
 
 
+
+	//!!!printf version
 	//remove last char, ONLY if it's \n or \r
 	//this is done for "printf", cause it seems to consider them equal, adding unnecessary empty lines
-	char cutBuffer[strlen(text)];
+	/*char cutBuffer[strlen(text)];
 	strcpy(cutBuffer, text);
 	char *p = cutBuffer;
 	if(((p[strlen(p)-1]) == '\n') || ((p[strlen(p)-1]) == '\r')) p[strlen(p)-1] = 0;
-	printf(cutBuffer);
+	printf(cutBuffer);*/
 	return;
 }
 
@@ -209,11 +255,21 @@ char calculateIntFlashChecksum(){
 
 
 int updateIntFlashChecksum(){
+	bootloader_debugmessage("Updating internal flash checksum... \n\r");
+	if(!(l11uxx_internal_flash_modifyOneByte(APP_INFO_ADDR_START+256-1, calculateIntFlashChecksum(), SYSCLKINKHZ))){
+		bootloader_debugmessage("Internal flash checksum changed and verified: ");
+		bootloader_debugmessage_valueHex(l11uxx_internal_flash_read(APP_INFO_ADDR_START+256-1),2);
+		bootloader_debugmessage("\n\r");
+		return 1; //is OK
+	} else {
+		bootloader_debugmessage("Internal flash checksum update FAILED: ");
+		bootloader_debugmessage_valueHex(l11uxx_internal_flash_read(APP_INFO_ADDR_START+256-1),2);
+		bootloader_debugmessage("\n\r");
+		return 0; //very broken
+	}
 
-	l11uxx_internal_flash_modifyOneByte(APP_INFO_ADDR_START+8+0, calculateIntFlashChecksum(), SYSCLKINKHZ);
 
-	return 1; //is OK
-	return 0; //very broken
+
 }
 
 int clearFirstbootFlag(){
@@ -255,9 +311,9 @@ int isIntFlashChecksumOK(){
 
 		bootloader_debugmessage("Image length to be: ");
 		bootloader_debugmessage_valueHex(imageLength,4);
-		bootloader_debugmessage(", where MSB is: ");
-		bootloader_debugmessage_valueHex(imageLengthMSB,2);
-		bootloader_debugmessage("\n\r");
+		//bootloader_debugmessage(", where MSB is: ");
+		//bootloader_debugmessage_valueHex(imageLengthMSB,2);
+		//bootloader_debugmessage("\n\r");
 		bootloader_debugmessage("Currently written image length: ");
 		bootloader_debugmessage_valueHex(	( (l11uxx_internal_flash_read(APP_INFO_POINTER_LENMSB)) <<8)	+ (( (l11uxx_internal_flash_read(APP_INFO_ADDR_START+8+4)) &0xFF)),4);
 		bootloader_debugmessage("\n\r");
@@ -284,7 +340,8 @@ int isIntFlashChecksumOK(){
 
 		//calc and update checksum
 
-		updateIntFlashChecksum();
+		if (updateIntFlashChecksum());
+		else return 0; //very broken
 
 
 		//remove firstboot flag
@@ -307,7 +364,7 @@ int isIntFlashChecksumOK(){
 		bootloader_debugmessage_valueHex(checksum,2);
 		bootloader_debugmessage("\n\r");
 
-		if(checksum == l11uxx_internal_flash_read(APP_INFO_ADDR_START+256-1),2){
+		if(checksum == l11uxx_internal_flash_read(APP_INFO_ADDR_START+256-1)){
 			bootloader_debugmessage("Internal flash checksum OK.\n\r");
 			return 1;
 		}
@@ -328,12 +385,40 @@ int main(){
 
 
 
+	bootloader_debugUART_init();
+
 
 	//bootloader_debugmessage("Test checksum for 'Hi'!\n\r");
 	//char checksum[32]; //only 1 byte used for CRC-8
 	//calculateIntFlashChecksum(checksum);
 	//bootloader_debugmessage_valueHex(checksum, 2);
 	//bootloader_debugmessage("\n\r");
+
+	//print a nice JDP logo
+	/*bootloader_debugmessage("\n\r");
+	bootloader_debugmessage("====================\n\r");
+	bootloader_debugmessage("=                  =\n\r");
+	bootloader_debugmessage("=  MMMM MMM  MMM   =\n\r");
+	bootloader_debugmessage("=     M M  M M  M  =\n\r");
+	bootloader_debugmessage("=     M M  M MMM   =\n\r");
+	bootloader_debugmessage("=  M  M M  M M     =\n\r");
+	bootloader_debugmessage("=   MM  MMM  M     =\n\r");
+	bootloader_debugmessage("=                  =\n\r");
+	bootloader_debugmessage("====================\n\r");*/
+
+	//print a nicer JDP logo
+		bootloader_debugmessage("\n\r");
+		bootloader_debugmessage("╔═════════════════════╗\n\r");
+		bootloader_debugmessage("║                     ║\n\r");
+		bootloader_debugmessage("║  █████ ████  ████   ║\n\r");
+		bootloader_debugmessage("║      █ █   █ █   █  ║\n\r");
+		bootloader_debugmessage("║      █ █   █ ████   ║\n\r");
+		bootloader_debugmessage("║  █   █ █   █ █      ║\n\r");
+		bootloader_debugmessage("║   ███  ████  █      ║\n\r");
+		bootloader_debugmessage("║                     ║\n\r");
+		bootloader_debugmessage("╚═════════════════════╝\n\r");
+
+
 
 	bootloader_debugmessage("L1UDEV001A bootloader is go!\n\r");
 	if(isExtFlashInstalled()){ //aww yeah we have flash, time to do things
@@ -349,7 +434,7 @@ int main(){
 	//attempt flashing stock image
 	if(isIntFlashChecksumOK()) jumpToApplication();
 
-	//indicate major error?
+	//indicate major error
 	bootloader_debugmessage("Major error.\n\r");
 	while(1){ //lock MCU
 
