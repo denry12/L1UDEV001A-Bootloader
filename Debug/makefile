@@ -29,14 +29,14 @@ all: L1UDEV001A-Bootloader.axf
 L1UDEV001A-Bootloader.axf: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: MCU Linker'
-	arm-none-eabi-gcc -nostdlib -L"C:\Users\denry.LIEWENTHAL\Documents\LPCXpresso_8.1.2_603\workspace_11u35\CMSISv2p00_LPC11Uxx\Debug" -Xlinker -Map="L1UDEV001A-Bootloader.map" -Xlinker --gc-sections -mcpu=cortex-m0 -mthumb -T "L1UDEV001A-Bootloader_Debug.ld" -o "L1UDEV001A-Bootloader.axf" $(OBJS) $(USER_OBJS) $(LIBS)
+	arm-none-eabi-gcc -nostdlib -L"C:\Users\Denry\Documents\LPCXpresso_7.8.0_426\workspace8_01_swd\CMSISv2p00_LPC11Uxx\Debug" -Xlinker -Map="L1UDEV001A-Bootloader.map" -Xlinker --gc-sections -mcpu=cortex-m0 -mthumb -T "L1UDEV001A-Bootloader_Debug.ld" -o "L1UDEV001A-Bootloader.axf" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 	$(MAKE) --no-print-directory post-build
 
 # Other Targets
 clean:
-	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) L1UDEV001A-Bootloader.axf
+	-$(RM) $(OBJS)$(C_DEPS)$(EXECUTABLES) L1UDEV001A-Bootloader.axf
 	-@echo ' '
 
 post-build:

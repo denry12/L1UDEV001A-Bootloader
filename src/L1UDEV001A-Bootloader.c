@@ -17,6 +17,9 @@
 #define APP_ADDR_START 0x00004104
 #define MCU_FLASH_SIZE 0x00010000
 
+#define APP_INFO_POINTER_LENMSB APP_INFO_ADDR_START+8+5
+#define APP_INFO_POINTER_LENLSB APP_INFO_ADDR_START+8+4
+
 //required to put quotation marks around defines
 #define DEF2STR(x) #x
 #define STR(x) DEF2STR(x)
@@ -28,6 +31,7 @@ void bootloader_debugmessage(char text[]){
 
 
 	//remove last char, ONLY if it's \n or \r
+	//this is done for "printf", cause it seems to consider them equal, adding unnecessary empty lines
 	char cutBuffer[strlen(text)];
 	strcpy(cutBuffer, text);
 	char *p = cutBuffer;
@@ -121,109 +125,92 @@ int getMCUID(){
 	return ID;
 }
 
-int accessChecksumMemory(int read, int value){
-	static int checksum = 0;
-	if(read) return checksum;
-	else checksum = value;
-	return 1;
+
+
+
+
+
+
+
+
+
+char crc8ccitt(const char *data, int len, char init) { //length in 8bit chunks
+	// shoutout to ES for providing me a working and simple example of CRC
+	// 8bit CRC, poly 0x07 (CRC8 CCITT)
+	// https://en.wikipedia.org/wiki/Linear-feedback_shift_register
+	char crc = init;
+
+	bootloader_debugmessage("Starting at addr: ");
+	bootloader_debugmessage_valueHex(data, 8);
+	bootloader_debugmessage("\n\r");
+    while (len) {
+    	crc ^= *(data);
+
+    	//0x07 = 0b00000111;
+        crc ^= (crc >> 6) ^ (crc >> 7);
+        crc ^= (crc << 1) ^ (crc << 2);
+
+        data++;
+        len--;
+    }
+    bootloader_debugmessage("Finished before checking at addr: ");
+    	bootloader_debugmessage_valueHex(data, 8);
+    	bootloader_debugmessage(" with checksum of ");
+    	bootloader_debugmessage_valueHex(crc, 2);
+    		bootloader_debugmessage("\n\r");
+    return crc;
 }
 
-int clearChecksumMemory(){
-	accessChecksumMemory(0, 0);
-	return 1;
-}
-
-int setChecksumMemory(int data){
-	accessChecksumMemory(0, data);
-	return 1;
-}
-
-int getChecksumMemory(){
-	return accessChecksumMemory(1, 0);
-}
-
-int add32bitToChecksum(int data){
-	int i;
-	const unsigned int divisor = 0x000000D5; //8 bit;
-	int currentChecksum = getChecksumMemory();
-	for(i=0; i<32; i++){
-		while((!(data&0x01))&&(i<32)) i++;
-		data = data >> 1;
-		currentChecksum = (data) ^ divisor;
-	}
-	setChecksumMemory(currentChecksum);
-	return 1; //all ok
-}
-
-
-int calculateIntFlashChecksum(char *checkSumPointer){
+char calculateIntFlashChecksum(){
 	//http://www.zorc.breitbandkatze.de/crc.html
 	//for testing
 	//doing CRC-8
 
+	unsigned long long length = l11uxx_internal_flash_read(APP_INFO_POINTER_LENMSB);//in 256 byte pages
+	length = length << 8;
+	length |= (0xFF & l11uxx_internal_flash_read(APP_INFO_ADDR_START+8+4));
+	length &= 0xFFFF;
 
-	int i;
-	unsigned int divisor = 0x000000D5; //8 bit;
-	divisor = divisor << 24; //I test MSB first and shift data
-	unsigned long long length = 0;//in 256 byte pages
+	length = length - 1; //cause one page is reserved for appinfo
+
+	bootloader_debugmessage("Calculating for image length of ");
+		bootloader_debugmessage_valueHex(length, 4);
+		bootloader_debugmessage(" pages\n\r");
 
 	//unsigned long long lastFlashAddr = APP_SP_ADDR + length;
+	length = length * 256; //how many 8bit chunks
+	//length = 2; //2 chars, for testing
 
-	//length = length * 64; //this many 512bit chunks
-	//length = length * 64 * 16; //this many 32bit chunks
-	//goal is to get number of 32bit chunks
-	length = 1; //1 chunk, for testing
+//	int blockUnderTest = 0;
+//
+//	blockUnderTest |= ('H' << 24);
+//	blockUnderTest |= ('i' << 16);
+//	blockUnderTest |= ('L' << 8);
+//	blockUnderTest |= ('o' << 0);
 
-	//new goal is to get 32bit chunk count
-	length = length * 4; //how many 8bit chunks
-	//char blockOf512bit[16];
-	unsigned long long blockUnderTest = 0; //64 bit, 32bit being data, 8bit being checksum
-	unsigned int checksum; //
+	bootloader_debugmessage("Commencing internal checksum calc, for ");
+	bootloader_debugmessage_valueHex(length, 4);
+	bootloader_debugmessage(" bytes\n\r");
+	return crc8ccitt(APP_SP_ADDR, length, 0xFF);
+	//checkSumPointer[0] = crc8ccitt(&blockUnderTest, length, 0xFF);
 
-	//this is where loop starts
-	while(length > 0){
-	//input of block
-	blockUnderTest |= ('H' << 24);
-	blockUnderTest |= ('i' << 16);
-	//blockUnderTest |= (0 << 8);
-	//blockUnderTest |= (0 << 0);
-
-	//pad the block with zeroes to fit CRC length (32bit)
-	//blockUnderTest = blockUnderTest << 32;
-	i=0;
-	for(i=0; i<8; i++){ //run 8 bits and shift in new data
-		while(((blockUnderTest>>31)&0x01) != 1) i++;
-		blockUnderTest = blockUnderTest ^ divisor;
-		blockUnderTest = blockUnderTest << 1;
-	}
-	//blockUnderTest |= getflash(endAddr + i)//get new info
-
-
-		blockUnderTest = blockUnderTest ^ ((divisor>>i)&0xFFFFFFFF);
-
-		bootloader_debugmessage("B:");
-		bootloader_debugmessage_valueHex(((blockUnderTest>>32)&0xFFFFFFFF),8);
-		bootloader_debugmessage("\n\r");
-		bootloader_debugmessage("D:");
-		bootloader_debugmessage_valueHex(((divisor>>32)&0xFFFFFFFF),8);
-		bootloader_debugmessage("\n\r");
-		bootloader_debugmessage("------------\n\r");
-
-	}
-	//this is where loop ends
-	checksum = blockUnderTest & 0xFFFFFFFF;
-	//put checksum to correct place, cause I hate pointers so much
-	checkSumPointer[3] = ((checksum >> 24)&0xFF);
-	checkSumPointer[2] = ((checksum >> 16)&0xFF);
-	checkSumPointer[1] = ((checksum >> 8)&0xFF);
-	checkSumPointer[0] = ((checksum >> 0)&0xFF);
-	return 1; //is OK
-	return 0; //very broken
+	//return 1; //is OK
+	//return 0; //very broken
 }
+
+
+
+
+
+
+
+
+
+
 
 int updateIntFlashChecksum(){
 
-	//
+	l11uxx_internal_flash_modifyOneByte(APP_INFO_ADDR_START+8+0, calculateIntFlashChecksum(), SYSCLKINKHZ);
 
 	return 1; //is OK
 	return 0; //very broken
@@ -232,8 +219,8 @@ int updateIntFlashChecksum(){
 int clearFirstbootFlag(){
 	int status=1; //by default is "fail"
 
-	//!!!!!!!THIS IS COMMENTED OUT TO REDUCE FLASH WEAR DURING TEST
-	//status = l11uxx_internal_flash_modifyOneByte(APP_INFO_ADDR_START+8+2, 0x00, SYSCLKINKHZ);
+	//!!!!!!!IF THIS IS COMMENTED OUT, IT IS TO REDUCE FLASH WEAR DURING TEST
+	status = l11uxx_internal_flash_modifyOneByte(APP_INFO_ADDR_START+8+2, 0x00, SYSCLKINKHZ);
 
 	//verification
 	if(!(status)){
@@ -253,8 +240,7 @@ int clearFirstbootFlag(){
 
 int isIntFlashChecksumOK(){
 
-	int temporaryDebugValue=0;
-
+	int checksum = 0;
 	//if firstboot flag
 	if((l11uxx_internal_flash_read(APP_INFO_ADDR_START+8+2)) != 0x00){
 		bootloader_debugmessage("Firstboot flag set: ");
@@ -262,18 +248,44 @@ int isIntFlashChecksumOK(){
 		bootloader_debugmessage("\n\r");
 
 		//update image length
-		temporaryDebugValue=((MCU_FLASH_SIZE-APP_SP_ADDR)/256);
-		if(!(l11uxx_internal_flash_modifyOneByte(APP_INFO_ADDR_START+8+3, ((MCU_FLASH_SIZE-APP_SP_ADDR)/256), SYSCLKINKHZ))){
-		bootloader_debugmessage("Image length updated: ");
-		bootloader_debugmessage_valueHex(l11uxx_internal_flash_read(APP_INFO_ADDR_START+8+3),2);
+		//temporaryDebugValue=((MCU_FLASH_SIZE-APP_SP_ADDR)/256);
+
+		int imageLength = ((MCU_FLASH_SIZE-APP_INFO_ADDR_START)/256); //NB, this involves appinfo also
+		char imageLengthMSB = ((imageLength>>8)&0xFF);
+
+		bootloader_debugmessage("Image length to be: ");
+		bootloader_debugmessage_valueHex(imageLength,4);
+		bootloader_debugmessage(", where MSB is: ");
+		bootloader_debugmessage_valueHex(imageLengthMSB,2);
 		bootloader_debugmessage("\n\r");
-		} else {
-			bootloader_debugmessage("Image length update FAILED: ");
-			bootloader_debugmessage_valueHex(l11uxx_internal_flash_read(APP_INFO_ADDR_START+8+3),2);
+		bootloader_debugmessage("Currently written image length: ");
+		bootloader_debugmessage_valueHex(	( (l11uxx_internal_flash_read(APP_INFO_POINTER_LENMSB)) <<8)	+ (( (l11uxx_internal_flash_read(APP_INFO_ADDR_START+8+4)) &0xFF)),4);
+		bootloader_debugmessage("\n\r");
+
+		if(!(l11uxx_internal_flash_modifyOneByte(APP_INFO_POINTER_LENMSB, imageLengthMSB, SYSCLKINKHZ))){
+			if(!(l11uxx_internal_flash_modifyOneByte(APP_INFO_ADDR_START+8+4, (imageLength & 0x00FF), SYSCLKINKHZ))){
+
+			bootloader_debugmessage("Image length updated: ");
+			bootloader_debugmessage_valueHex(	((l11uxx_internal_flash_read(APP_INFO_POINTER_LENMSB))<<8)	+ (((l11uxx_internal_flash_read(APP_INFO_ADDR_START+8+4))&0xFF)),4);
 			bootloader_debugmessage("\n\r");
+			}
+			else {
+						bootloader_debugmessage("Image length update step 2 FAILED: ");
+						bootloader_debugmessage_valueHex(	((l11uxx_internal_flash_read(APP_INFO_POINTER_LENMSB))<<8)	+ ((l11uxx_internal_flash_read(APP_INFO_ADDR_START+8+4))),4);
+						bootloader_debugmessage("\n\r");
+						return 0; //very broken
+					}
+		} else {
+			bootloader_debugmessage("Image length update step 1 FAILED: ");
+			bootloader_debugmessage_valueHex(	((l11uxx_internal_flash_read(APP_INFO_POINTER_LENMSB))<<8)	+ ((l11uxx_internal_flash_read(APP_INFO_ADDR_START+8+4))),4);
+			bootloader_debugmessage("\n\r");
+			return 0; //very broken
 		}
 
 		//calc and update checksum
+
+		updateIntFlashChecksum();
+
 
 		//remove firstboot flag
 		//verify firstboot flag. If still there, something hellawrong, not allow boot.
@@ -287,6 +299,22 @@ int isIntFlashChecksumOK(){
 
 	if(getMCUID() == 35){
 		//check for LPC11U35
+		bootloader_debugmessage("Expecting 1 byte checksum for internal image: ");
+		bootloader_debugmessage_valueHex(l11uxx_internal_flash_read(APP_INFO_ADDR_START+256-1),2);
+		bootloader_debugmessage("\n\r");
+		checksum = calculateIntFlashChecksum();
+		bootloader_debugmessage("Received checksum: ");
+		bootloader_debugmessage_valueHex(checksum,2);
+		bootloader_debugmessage("\n\r");
+
+		if(checksum == l11uxx_internal_flash_read(APP_INFO_ADDR_START+256-1),2){
+			bootloader_debugmessage("Internal flash checksum OK.\n\r");
+			return 1;
+		}
+		else{
+			bootloader_debugmessage("Internal flash checksum NOT VALID.\n\r");
+			return 0;
+		}
 	} else return 1; //Others not supported yet, so, yeah, sure why not.
 
 	return 1; //is OK
@@ -299,14 +327,13 @@ int isIntFlashChecksumOK(){
 int main(){
 
 
-	bootloader_debugmessage("Expecting 1 byte checksum for internal image: ");
-	bootloader_debugmessage_valueHex(l11uxx_internal_flash_read(APP_INFO_ADDR_START+256-1),4);
-	bootloader_debugmessage("\n\r");
 
-	bootloader_debugmessage("Test checksum for 'Hi'!\n\r");
-	char checksum[32]; //only 1 byte used for CRC-8
-	calculateIntFlashChecksum(checksum);
-	bootloader_debugmessage(checksum);
+
+	//bootloader_debugmessage("Test checksum for 'Hi'!\n\r");
+	//char checksum[32]; //only 1 byte used for CRC-8
+	//calculateIntFlashChecksum(checksum);
+	//bootloader_debugmessage_valueHex(checksum, 2);
+	//bootloader_debugmessage("\n\r");
 
 	bootloader_debugmessage("L1UDEV001A bootloader is go!\n\r");
 	if(isExtFlashInstalled()){ //aww yeah we have flash, time to do things
@@ -323,9 +350,10 @@ int main(){
 	if(isIntFlashChecksumOK()) jumpToApplication();
 
 	//indicate major error?
-
+	bootloader_debugmessage("Major error.\n\r");
 	while(1){ //lock MCU
 
 	}
+
 	return 1; //o no!?
 }
