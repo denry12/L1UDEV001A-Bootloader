@@ -127,6 +127,19 @@ int l11uxx_internal_flash_partID(){ //gets part ID
 	return 1; //o no
 }
 
+int l11uxx_internal_flash_uniqueID(int *UID){ //gets part uniqueID
+	command_param[0] = 58;
+	iap_entry (command_param,status_result);
+	//while(status_result[0] == IAP_STATUS_BUSY);
+	if(status_result[0] == IAP_STATUS_CMD_SUCCESS){
+		UID[0] = status_result[1];
+		UID[1] = status_result[2];
+		UID[2] = status_result[3];
+		UID[3] = status_result[4];
+		return 0; //everything wented better than expedition
+	}
+	return 1; //o no
+}
 
 int l11uxx_internal_flash_compare(int destAddr, int srcAddr, int numOfBytes){
 	//addresses should be word boundaries
